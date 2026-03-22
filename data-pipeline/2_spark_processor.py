@@ -1,31 +1,46 @@
 import json
 import pickle
 import pandas as pd
+import requests
 from kafka import KafkaConsumer
 from pymongo import MongoClient
 
-print("Initializing Real-Time Stream Processor...")
+print("Initializing Advanced AI Risk Processor...")
 
-# 1. Connect to MongoDB
+# ==========================================
+# 🛑 PASTE YOUR API KEYS HERE
+# ==========================================
+WEATHER_API_KEY = "37bbabd55b18ae10c82511fc8e8cc58c"
+NEWS_API_KEY = "pub_1c125887829643c59acf115ceb3393e3"
+TELEGRAM_BOT_TOKEN = "7986305230:AAGnAqFP9qygtt1ViZzm5yRUiOvdRb2Llbc"
+TELEGRAM_CHAT_ID = "6175788976"
+
+# 1. Connect to MongoDB (Using 27027 to match your Java Override)
 try:
     mongo_client = MongoClient('mongodb://127.0.0.1:27017/', serverSelectionTimeoutMS=5000)
     db = mongo_client['supply_chain_db']
     alerts_collection = db['real_time_alerts']
-    
-    # FORCE A TEST INSERT TO WAKE UP MONGODB
-    alerts_collection.insert_one({"system_status": "MongoDB Connection Successful"})
-    print("✅ Successfully connected and wrote test data to MongoDB!")
 except Exception as e:
-    print(f"❌ CRITICAL MONGODB ERROR: {e}")
+    print(f"❌ MONGODB ERROR: {e}")
     exit()
 
-# 2. Load the AI Brain (XGBoost Model)
-print("Loading Machine Learning Model...")
+# 2. Load ML Brain
 with open('supply_chain_risk_model.pkl', 'rb') as file:
     model = pickle.load(file)
 
-# 3. Connect to the Kafka Topic
-print("Connecting to Kafka Topic 'live_ship_data'...")
+# 3. Cache Global Geopolitical News (Run Once to save API limits)
+print("🌍 Scanning Global Geopolitical Intelligence...")
+crisis_active = False
+try:
+    news_url = f"https://newsdata.io/api/1/news?apikey={NEWS_API_KEY}&q=war OR strike OR blockade OR pirate OR conflict"
+    news_response = requests.get(news_url).json()
+    if news_response.get("status") == "success" and len(news_response.get("results", [])) > 0:
+        crisis_active = True
+        print("⚠️ Geopolitical Crisis Detected in global news feeds.")
+except Exception as e:
+    print("News API skipped or failed.")
+
+# 4. Connect to Kafka
 consumer = KafkaConsumer(
     'live_ship_data',
     bootstrap_servers=['localhost:9092'],
@@ -33,42 +48,76 @@ consumer = KafkaConsumer(
     value_deserializer=lambda x: json.loads(x.decode('utf-8'))
 )
 
-print("✅ System Online. Waiting for ships...\n")
+print("\n✅ SYSTEM ONLINE. Monitoring global fleet...\n")
 
-# 4. Process the Stream
+# 5. The Processing Loop
 for message in consumer:
-    # Create a fresh copy of the dictionary to avoid BSON _id conflicts
-    ship_data = dict(message.value) 
+    ship_data = dict(message.value)
     ship_name = ship_data.get('ship_name')
     speed = ship_data.get('speed', 0)
+    lat = ship_data.get('latitude')
+    lon = ship_data.get('longitude')
     
     if not ship_name or ship_name == "Unknown" or speed < 1.0:
         continue
 
+    # A. Run Base ML Prediction
     simulated_features = pd.DataFrame([{
-        'Type': 1,               
-        'Shipping Mode': 2 if speed > 15 else 1, 
-        'Category Name': 3,      
-        'Order Region': 4,       
-        'Order Country': 5,      
-        'Order Item Quantity': 100, 
-        'Product Price': 500.0   
+        'Type': 1, 'Shipping Mode': 2 if speed > 15 else 1, 'Category Name': 3,      
+        'Order Region': 4, 'Order Country': 5, 'Order Item Quantity': 100, 'Product Price': 500.0   
     }])
+    ml_prediction = int(model.predict(simulated_features)[0])
     
-    prediction = model.predict(simulated_features)[0]
-    risk_status = "🚨 HIGH RISK (DELAY PREDICTED)" if prediction == 1 else "✅ SAFE"
-    
-    # Force cast to native Python types so MongoDB doesn't crash on numpy datatypes
-    ship_data['risk_assessment'] = int(prediction)
-    ship_data['status_text'] = str(risk_status)
-    
-    # 5. Save to MongoDB with strict error catching
-    try:
-        # If Kafka re-sends a message, we must remove the old Mongo ID or it will crash
-        if '_id' in ship_data:
-            del ship_data['_id']
+    risk_level = "✅ SAFE"
+    weather_desc = "Clear"
+    wind_speed = 0.0
+
+    # B. Tiered Logic: Only check weather if ML predicts risk OR ship is very slow
+    if ml_prediction == 1 or speed < 5.0:
+        try:
+            weather_url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={WEATHER_API_KEY}&units=metric"
+            weather_data = requests.get(weather_url).json()
             
-        alerts_collection.insert_one(ship_data)
-        print(f"[{ship_name}] Speed: {speed} knots -> {risk_status} (💾 SAVED TO DB)")
-    except Exception as e:
-        print(f"❌ FAILED TO SAVE [{ship_name}] TO MONGODB: {e}")
+            if weather_data.get("cod") == 200:
+                wind_speed = weather_data["wind"]["speed"] * 1.94384 # Convert m/s to knots
+                weather_desc = weather_data["weather"][0]["description"]
+                
+                # Upgrade to CRITICAL if weather is severe (>30 knots wind)
+                if wind_speed > 30.0:
+                    risk_level = "🚨 CRITICAL RISK (SEVERE WEATHER)"
+                elif crisis_active:
+                    risk_level = "🚨 HIGH RISK (GEOPOLITICAL ZONE)"
+                else:
+                    risk_level = "⚠️ MODERATE RISK (ML DELAY PREDICTED)"
+        except Exception as e:
+            risk_level = "⚠️ MODERATE RISK (ML DELAY PREDICTED)"
+
+    # C. Save to Database
+    ship_data['risk_assessment'] = 2 if "CRITICAL" in risk_level else ml_prediction
+    ship_data['status_text'] = risk_level
+    ship_data['weather'] = f"{weather_desc} ({round(wind_speed, 1)} kts wind)"
+    
+    if '_id' in ship_data:
+        del ship_data['_id']
+    alerts_collection.insert_one(ship_data)
+    
+    print(f"[{ship_name}] Speed: {speed}kts | Weather: {weather_desc} | Status: {risk_level}")
+
+    # D. Simulate SATCOM Transmission (Telegram) ONLY for Critical Risks
+    if "CRITICAL" in risk_level:
+        print(f"📡 TRANSMITTING SATCOM ALERT TO {ship_name}...")
+        telegram_msg = (
+            f"🚨 URGENT FLEET ALERT 🚨\n\n"
+            f"🚢 Vessel: {ship_name}\n"
+            f"📍 Coordinates: {lat}, {lon}\n"
+            f"⚠️ Reason: {risk_level}\n"
+            f"⛈️ Weather: {weather_desc.title()} ({round(wind_speed, 1)} knots wind)\n\n"
+            f"ACTION REQUIRED: Contact Fleet Operations immediately."
+        )
+        try:
+            requests.post(
+                f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                data={"chat_id": TELEGRAM_CHAT_ID, "text": telegram_msg}
+            )
+        except Exception as e:
+            print("SATCOM failure.")

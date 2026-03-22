@@ -27,6 +27,10 @@ public class ShipAlert {
     @Field("risk_assessment")
     private int riskAssessment;
 
+    // NEW WEATHER FIELD
+    @Field("weather")
+    private String weather;
+
     // Getters and Setters
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
@@ -48,4 +52,7 @@ public class ShipAlert {
     
     public int getRiskAssessment() { return riskAssessment; }
     public void setRiskAssessment(int riskAssessment) { this.riskAssessment = riskAssessment; }
+
+    public String getWeather() { return weather; }
+    public void setWeather(String weather) { this.weather = weather; }
 }
