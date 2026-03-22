@@ -1,19 +1,24 @@
+import os
 import json
 import pickle
 import pandas as pd
 import requests
 from kafka import KafkaConsumer
 from pymongo import MongoClient
+from dotenv import load_dotenv
+
+# Load the hidden keys from the .env file
+load_dotenv()
 
 print("Initializing Advanced AI Risk Processor...")
 
 # ==========================================
-# 🛑 PASTE YOUR API KEYS HERE
+# 🔒 SECURE API KEYS
 # ==========================================
-WEATHER_API_KEY = "37bbabd55b18ae10c82511fc8e8cc58c"
-NEWS_API_KEY = "pub_1c125887829643c59acf115ceb3393e3"
-TELEGRAM_BOT_TOKEN = "7986305230:AAGnAqFP9qygtt1ViZzm5yRUiOvdRb2Llbc"
-TELEGRAM_CHAT_ID = "6175788976"
+WEATHER_API_KEY = os.getenv("WEATHER_API_KEY")
+NEWS_API_KEY = os.getenv("NEWS_API_KEY")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 # 1. Connect to MongoDB (Using 27027 to match your Java Override)
 try:

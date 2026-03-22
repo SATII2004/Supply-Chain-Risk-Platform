@@ -1,6 +1,11 @@
+import os
+import asyncio
+import websockets
 import json
-import websocket
 from kafka import KafkaProducer
+from dotenv import load_dotenv
+
+load_dotenv()
 
 print("Initializing Kafka Producer...")
 
@@ -11,8 +16,7 @@ producer = KafkaProducer(
 )
 
 # Paste your API Key here again!
-API_KEY = "91e9d7bd12bafc12bbfee51bdcce57ae6676e087" 
-
+API_KEY = os.getenv("AISSTREAM_KEY")
 def on_message(ws, message):
     data = json.loads(message)
     
