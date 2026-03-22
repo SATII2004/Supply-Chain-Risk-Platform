@@ -1,6 +1,5 @@
 import os
-import asyncio
-import websockets
+import websocket
 import json
 from kafka import KafkaProducer
 from dotenv import load_dotenv
