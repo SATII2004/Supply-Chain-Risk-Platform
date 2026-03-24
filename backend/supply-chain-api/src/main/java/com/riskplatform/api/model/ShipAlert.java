@@ -51,8 +51,8 @@ public class ShipAlert {
     public void setStatusText(String statusText) { this.statusText = statusText; }
     
     public int getRiskAssessment() { return riskAssessment; }
-    public void setRiskAssessment(int riskAssessment) { this.riskAssessment = riskAssessment; }
+    public void setRiskAssessment(int riskAssessment) { this.riskAssessment = riskAssessment;}
 
-    public String getWeather() { return weather; }
-    public void setWeather(String weather) { this.weather = weather; }
+    public String getWeather() {return weather;}
+    public void setWeather(String weather) {this.weather = weather;}
 }
